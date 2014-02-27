@@ -2,6 +2,8 @@
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Scanner;
+import java.util.concurrent.ForkJoinPool;
 
 public class PopulationQuery {
 	// next four constants are relevant to parsing
@@ -9,6 +11,12 @@ public class PopulationQuery {
 	public static final int POPULATION_INDEX = 4; // zero-based indices
 	public static final int LATITUDE_INDEX   = 5;
 	public static final int LONGITUDE_INDEX  = 6;
+	public static ForkJoinPool fjPool = new ForkJoinPool();
+	public static int version;
+	public static int columns;
+	public static int rows;
+	public static PreprocessResult preData;
+	public static CensusData cenData;
 	
 	// parse the input file into a large array held in a CensusData object
 	public static CensusData parse(String filename) {
@@ -58,45 +66,107 @@ public class PopulationQuery {
 	// argument 4: -v1, -v2, -v3, -v4, or -v5
 	public static void main(String[] args) {
 		String filename = args[0];
-		int xDim = Integer.parseInt(args[1]);
-		int yDim = Integer.parseInt(args[2]);
-		int version = Integer.parseInt(args[3].substring(2));
-		// FOR YOU
-	}
-
-	public static void preprocess(String filename, int columns, int rows,
-			int versionNum) {
-		switch(versionNum) {
-		case 1: preprocessOne(filename, columns, rows);
-		case 2: preprocessTwo(filename, columns, rows);
-		}
+		// TODO CHANGE TO actual command line input ?
+		columns = Integer.parseInt(args[1]);
+		rows = Integer.parseInt(args[2]);
+		version = Integer.parseInt(args[3].substring(2));
+		preData = preprocess(filename, columns, rows, version);
 		
-	}
-
-	private static void preprocessTwo(String filename, int columns, int rows) {
-		CensusData initial = parse(filename);
-		float highLat = initial.data[0].latitude,
-				lowLat = initial.data[0].latitude;
-		float highLon = initial.data[0].longitude,
-				lowLon = initial.data[0].longitude;
-		for(int i = 0; i < initial.data_size; i++) {
-			CensusGroup group = initial.data[i];
-			highLat = Math.max(group.latitude, highLat);
-			lowLat = Math.min(lowLat, group.latitude);
-			highLon = Math.max(highLon, group.longitude);
-			lowLon = Math.min(lowLon, group.longitude);
+		Scanner console = new Scanner(System.in);
+		boolean hasQuery = true;
+		while(hasQuery) {
+			System.out.println("Please give west, south, east, north coordinates of your query rectangle:");
+			int w = 0, s = 0, e = 0, n = 0;
+			String input = "";
+			if(console.hasNextLine()) {
+				input = console.nextLine();
+				Scanner lineScan = new Scanner(input);
+				if(lineScan.hasNextInt()) {
+					w = lineScan.nextInt();
+				} else {
+					hasQuery = false;
+				}
+				if(lineScan.hasNextInt()) {
+					s = lineScan.nextInt();
+				} else {
+					hasQuery = false;
+				}
+				if(lineScan.hasNextInt()) {
+					e = lineScan.nextInt();
+				} else {
+					hasQuery = false;
+				}
+				if(lineScan.hasNextInt()) {
+					n = lineScan.nextInt();
+				} else {
+					hasQuery = false;
+				}
+				if(hasQuery) {
+					Pair<Integer, Float> queryAnswer = singleInteraction(w, s, e, n);
+					System.out.println("population of rectangle: " + queryAnswer.getElementA());
+					System.out.println("percent of total population: " + queryAnswer.getElementB());
+				}
+			} else {
+				hasQuery = false;
+			}
+			
 		}
-		
 	}
 
-	private static void preprocessOne(String filename, int columns, int rows) {
+	// Processes the input from the specified file, using the specified number of rows and columns,
+	// and the specified version. Returns a PreprocessResult object which contains the maximum and minimum
+	// latitudes and longitudes as well as the total population. 
+	public static PreprocessResult preprocess(String filename, int columns, int rows, int version) {
+		PreprocessResult res = null;
+		switch(version) {
+		case 1: res = preprocessOne(filename);
+		case 2: res = preprocessTwo(filename);
+		}
+		return res;
+	}
+
+	// Wrapper method that invokes the multithreaded version 2 preprocessing. Also parses the file
+	// into the cenData field.
+	private static PreprocessResult preprocessTwo(String filename) {
+		cenData = parse(filename);
+		PreprocessTwo process = new PreprocessTwo(cenData, 0, cenData.data_size);
+		PreprocessResult result = fjPool.invoke(process);
+		return result;
+	}
+	
+	// Wrapper method that invokes the multithreaded query for the population in the specified grid
+	// rectangle. Returns a pair of the population as a raw number and the population as a percentage
+	// of the total. 
+	private static Pair<Integer, Float> getPopulationTwo(PreprocessResult preData, 
+			int w, int s, int e, int n) {
+		int population = -1;
+		GetPopulationTwo process = new GetPopulationTwo(cenData, rows, columns, preData, w, s, e, n, 0, cenData.data_size);
+		population = fjPool.invoke(process);
+		float percentPop = (float) (Math.round(100 * (float) (100.0 * population / preData.totPop)) / 100.0);
+		return new Pair<Integer, Float>(population, percentPop);
+	}
+
+	// MICHAEL PUT YOUR WRAPPER HERE
+	private static PreprocessResult preprocessOne(String filename) {
 		// TODO Auto-generated method stub
-		
+		return null;
+	}
+	
+	// MICHAEL PUT YOUR OTHER WRAPPER HERE
+	private static Pair<Integer, Float> getPopulationOne(
+			PreprocessResult preData2, int w, int s, int e, int n) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
+	// Does a single query for the population of the specified rectangle of grid squares. Works
+	// based on the version being used by the rest of the program. 
 	public static Pair<Integer, Float> singleInteraction(int w, int s, int e,
 			int n) {
-		// TODO Auto-generated method stub
+		switch(version) {
+		case 1: return getPopulationOne(preData, w, s, e, n);
+		case 2: return getPopulationTwo(preData, w, s, e, n);
+		}
 		return null;
 	}
 }
