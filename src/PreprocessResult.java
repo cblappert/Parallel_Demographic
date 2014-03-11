@@ -1,6 +1,8 @@
-/*
+/* 
+ * Christopher Blappert and Michael Mitasev
+ * 
  * Wrapper class for being able to return the maximum/minimum latitudes to determine the map
- * boundaries. Also keeps the total population. 
+ * boundaries. Also keeps the total population.
  */
 public class PreprocessResult {
 	public float highLat;

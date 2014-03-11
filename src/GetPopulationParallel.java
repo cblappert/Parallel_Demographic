@@ -1,14 +1,18 @@
 import java.util.concurrent.RecursiveTask;
 
-/* 
+/*
+ * Christopher Blappert and Michael Mitasev
+ * 
  * Helper class used to parallelize the querying of the CensusData. Returns
  * an integer representing the total population in the specified grid squares,
  * inclusive of the north, south, east, west grid squares. Ties are broken by
  * assigning CensusGroups to the North, East or Northeast groups. Edges on the
- * northernmost and easternmost sides are included in their respective grid squares. 
+ * northernmost and easternmost sides are included in their respective grid squares.
  */
 
-public class GetPopulationTwo extends RecursiveTask<Integer> {
+public class GetPopulationParallel extends RecursiveTask<Integer> {
+
+	private static final long serialVersionUID = 1969575246704693659L;
 	private static final int SEQUENTIAL_CUTOFF = 1000;
 	private CensusData cenData;
 	private int rows, columns;
@@ -16,10 +20,10 @@ public class GetPopulationTwo extends RecursiveTask<Integer> {
 	private int w, s, e, n, start, end;
 
 	// Pre: CensusData passed in has at least one element in it [TODO FIND OUT IF THIS IS A VALID ASSUMPTION]
-	//      grid coordinates within the grid, can be equal to maximum row/column number, otherwise throws
-	// 		IllegalArgumentException()
-	// Post: Constructs a new GetPopulationTwo instance with the specified parameters 
-	public GetPopulationTwo(CensusData cenData, int rows, int columns, PreprocessResult preData, int w, int s, int e, int n, int start, int end) {
+	// grid coordinates within the grid, can be equal to maximum row/column number, otherwise throws
+	// IllegalArgumentException()
+	// Post: Constructs a new GetPopulationTwo instance with the specified parameters
+	public GetPopulationParallel(CensusData cenData, int rows, int columns, PreprocessResult preData, int w, int s, int e, int n, int start, int end) {
 		if(w < 0 || s < 0 || n > rows + 1 || e > columns + 1) {
 			throw new IllegalArgumentException();
 		}
@@ -34,12 +38,12 @@ public class GetPopulationTwo extends RecursiveTask<Integer> {
 		this.start = start;
 		this.end = end;
 	}
-	
+
 	// Pre: N/A taken care of in constructor
 	// Post: Computes the population contained in the grid squares specified in the constructor for the section
-	//       of CensusData specified by start (inclusive) and end (exclusive). Calculates population inclusive
-	//       of grid squares from the edges. Inclusive of the west and south edges of each grid square, and
-	//       edges that border the north and east edges of the map. 
+	// of CensusData specified by start (inclusive) and end (exclusive). Calculates population inclusive
+	// of grid squares from the edges. Inclusive of the west and south edges of each grid square, and
+	// edges that border the north and east edges of the map.
 	@Override
 	protected Integer compute() {
 		if(end - start <= SEQUENTIAL_CUTOFF) {
@@ -56,9 +60,9 @@ public class GetPopulationTwo extends RecursiveTask<Integer> {
 			int population = 0;
 			for(int i = start; i < end; i++) {
 				CensusGroup censusBlock = cenData.data[i];
-				boolean isContained =  censusBlock.longitude >= minLon &&
+				boolean isContained = censusBlock.longitude >= minLon &&
 						censusBlock.latitude >= minLat &&
-						censusBlock.longitude < maxLon && 
+						censusBlock.longitude < maxLon &&
 						censusBlock.latitude < maxLat;
 				if(isContained) {
 					population += censusBlock.population;
@@ -66,8 +70,8 @@ public class GetPopulationTwo extends RecursiveTask<Integer> {
 			}
 			return population;
 		} else {
-			GetPopulationTwo right = new GetPopulationTwo(cenData, rows, columns, preData, w, s, e, n, (start + end) / 2, end);
-			GetPopulationTwo left = new GetPopulationTwo(cenData, rows, columns, preData, w, s, e, n, start, (start + end) / 2);
+			GetPopulationParallel right = new GetPopulationParallel(cenData, rows, columns, preData, w, s, e, n, (start + end) / 2, end);
+			GetPopulationParallel left = new GetPopulationParallel(cenData, rows, columns, preData, w, s, e, n, start, (start + end) / 2);
 			right.fork();
 			int leftRes = left.compute();
 			int rightRes = right.join();
